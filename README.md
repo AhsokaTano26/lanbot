@@ -1,3 +1,5 @@
 # lanbot
 
-This a bot fou CQU Lanunion
+This a bot for CQU Lanunion.
+
+This is just for tset.
