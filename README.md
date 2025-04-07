@@ -2,4 +2,4 @@
 
 This a bot for CQU Lanunion.
 
-This is just for tset.
+This is just for test.
