@@ -13,7 +13,7 @@ from .lanunion import LanMsgs_getter, LanMsg
 from .models import Lanmsg
 from .models_method import LanmsgManager
 from .functions import update_lanmsgs_func, update_lanmsgs_initial, send_message, format_simple_lanmsg, \
-    format_lanmsg_to_sheet, format_lanmsg, handle_lanmsgs_between_time
+    format_lanmsg_to_sheet, format_lanmsg, handle_lanmsgs_between_time, update_jwcrssmessage_func, update_netrssmessage_func
 
 # --- 配置项 ---
 username = lanunion_config.lanunion_username
@@ -64,7 +64,7 @@ async def handle_lanmsgs_within_days(db_session, days: int, use_send_message: bo
             # 如果当前消息加上新的报修单信息超过最大长度，则发送当前消息并重置消息
             if len(message) + len(lanmsg_str) > MAX_MESSAGE_LENGTH:
                 if use_send_message:
-                    await send_message(message)  # 使用 send_message 发送
+                    await send_message(message,0)  # 使用 send_message 发送
                 else:
                     await lanunion.send(message)  # 使用 lanunion.send 发送
                 message = lanmsg_str  # 重置消息
@@ -74,7 +74,7 @@ async def handle_lanmsgs_within_days(db_session, days: int, use_send_message: bo
         # 发送剩余的消息
         if message:
             if use_send_message:
-                await send_message(message)  # 使用 send_message 发送
+                await send_message(message,0)  # 使用 send_message 发送
             else:
                 await lanunion.send(message)  # 使用 lanunion.send 发送
     else:
@@ -149,3 +149,17 @@ async def auto_send_7days():
     async with get_session() as db_session:
         await handle_lanmsgs_within_days(db_session, 7, True)
     logger.info("定时任务执行完毕：发送 7 天内的报修单")
+
+@scheduler.scheduled_job(CronTrigger(minute="*/10"))
+async def auto_update_jwcrssmessage_func():
+    """
+    定时任务函数，用于每间隔10分钟检查更新教务RSS信息。
+    """
+    await update_jwcrssmessage_func()
+
+@scheduler.scheduled_job(CronTrigger(minute="*/10"))
+async def auto_update_netrssmessage_func():
+    """
+    定时任务函数，用于每间隔10分钟检查更新信息办RSS信息。
+    """
+    await update_netrssmessage_func()

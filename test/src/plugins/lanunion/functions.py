@@ -13,6 +13,7 @@ from .config import lanunion_config
 from .lanunion import LanMsgs_getter, LanMsg
 from .models import Lanmsg
 from .models_method import LanmsgManager
+from rss_get import rss_get
 
 # --- 配置项 ---
 username = lanunion_config.lanunion_username
@@ -59,7 +60,7 @@ async def update_lanmsgs_func():
                                         to_sent = await LanmsgManager.get_lanmsg_by_sheet_no(db_session, sheet_no)
                                         await send_message(
                                             f"---报修单状态更新---\n{to_sent.sheet_id}\n{to_sent.sheet_no}|{to_sent.name} \n"
-                                            f"---已被分配给 {details['分配给']} ---")
+                                            f"---已被分配给 {details['分配给']} ---",0)
                                         # 发送成功后再更新数据库
                                         await LanmsgManager.update_lanmsg(db_session, sheet_no, **update_data)
                                     except Exception as e:
@@ -72,7 +73,7 @@ async def update_lanmsgs_func():
                                 try:
                                     to_sent = await LanmsgManager.get_lanmsg_by_sheet_no(db_session, sheet_no)
                                     await send_message(
-                                        f"---报修单状态更新---\nNO:{to_sent.sheet_id}\n{to_sent.sheet_no}|{to_sent.name} \n---被删除---")
+                                        f"---报修单状态更新---\nNO:{to_sent.sheet_id}\n{to_sent.sheet_no}|{to_sent.name} \n---被删除---",0)
                                     # 发送成功后再更新数据库
                                     await LanmsgManager.update_lanmsg(db_session, sheet_no, **update_data)
                                 except Exception as e:
@@ -110,7 +111,7 @@ async def update_lanmsgs_func():
                                 f"手机: {details['手机']}\n"
                                 f"硬件信息: {details['硬件信息']}\n\n"
                                 f"描述: {details['故障描述']}\n"
-                                f"---新报修单---")
+                                f"---新报修单---",0)
                             # 发送成功后再写入数据库
                             await LanmsgManager.create_lanmsg(
                                 db_session,
@@ -181,24 +182,25 @@ async def update_lanmsgs_initial():
             logger.error(f"未知错误: {e}")
 
 
-async def send_message(message, targets: list[int] = None):
+async def send_message(message, group, targets: list[int] = None):
     """
     发送消息到指定目标。
 
     参数:
         message: 要发送的消息。
         targets: 目标列表，可以是群号或用户 ID。
+        group: 要发送的群号,0为通知群，1为调度群，2为老调度群。
     """
     bot = get_bot()
-    for target in targets or NOTIFY_GROUPS:
-        try:
-            target = int(target)
-            if isinstance(target, int):
-                await bot.send_group_msg(group_id=target, message=message)
-            else:
-                logger.error(f"无效的目标类型: {type(target)}")
-        except Exception as e:
-            logger.error(f"发送消息到目标 {target} 失败: {e}")
+    try:
+        target = targets[group]
+        target = int(target)
+        if isinstance(target, int):
+            await bot.send_group_msg(group_id=target, message=message)
+        else:
+            logger.error(f"无效的目标类型: {type(target)}")
+    except Exception as e:
+        logger.error(f"发送消息到目标 {target} 失败: {e}")
 
 
 def format_lanmsg_to_sheet(lanmsg: Lanmsg):
@@ -291,13 +293,98 @@ async def check_and_send_reminder(lanmsg):
 
     if one_day_window:
         await send_message(
-            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 1 天，请及时处理---"
+            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 1 天，请及时处理---",0
         )
     elif two_day_window:
         await send_message(
-            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 2 天，请及时处理---"
+            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 2 天，请及时处理---",0
         )
     elif three_day_window:
         await send_message(
-            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 3 天，请及时处理---"
+            f"---报修单提醒---\n{format_lanmsg(lanmsg)}\n---已创建 3 天，请及时处理---",0
         )
+
+async def update_jwcrssmessage_func():
+    """更新数据库中的教务rss信息"""
+    async with get_session() as db_session:
+        try:
+            message = rss_get.jwc()  # 获取简略的rss数据
+
+            for jwc_data in message:
+                try:
+                    # 检查数据库中是否已存在该 sheetId 的记录
+                    existing_lanmsg = await LanmsgManager.get_lanmsg_by_sheet_no(
+                        db_session, str(jwc_data['sheetNo'])
+                    )
+
+                    if existing_lanmsg:  # 更新记录
+                        await check_and_send_reminder(existing_lanmsg)
+                    else:
+                        # 如果记录不存在，则创建新的记录
+                        lan_msg = LanMsg(jwc_data, httpSession=lan_getter.httpSession)
+                        details = lan_msg.getDetails()  # 获取详细数据
+                        # 先尝试发送消息
+                        try:
+                            await send_message(message,1)
+                            await send_message(message, 2)
+                            # 发送成功后再写入数据库
+                            await LanmsgManager.create_lanmsg(
+                                db_session,
+                                sheet_id=jwc_data['sheetId'],
+                                message=message,
+                                update_time=datetime.now(),
+                            )
+                            logger.info(f"创建数据: {jwc_data['sheetId']}")
+                        except Exception as e:
+                            logger.error(f"发送消息失败: {e}")
+                except Exception as e:
+                    logger.error(f"处理报修单 {jwc_data.get('sheetNo', '未知')} 时发生错误: {e}")
+
+        except SQLAlchemyError as e:
+            logger.error(f"数据库操作错误: {e}")
+            # 这里可以考虑回滚数据库操作: db_session.rollback()
+        except Exception as e:
+            logger.error(f"未知错误: {e}")
+
+async def update_netrssmessage_func():
+    """更新数据库中的信息办rss信息"""
+    async with get_session() as db_session:
+        try:
+            message = rss_get.net()  # 获取简略的rss数据
+
+            for net_data in message:
+                try:
+                    # 检查数据库中是否已存在该 sheetId 的记录
+                    existing_lanmsg = await LanmsgManager.get_lanmsg_by_sheet_no(
+                        db_session, str(net_data['sheetNo'])
+                    )
+
+                    if existing_lanmsg:  # 更新记录
+                        await check_and_send_reminder(existing_lanmsg)
+                    else:
+                        # 如果记录不存在，则创建新的记录
+                        lan_msg = LanMsg(net_data, httpSession=lan_getter.httpSession)
+                        details = lan_msg.getDetails()  # 获取详细数据
+                        # 先尝试发送消息
+                        try:
+                            await send_message(message, 0)
+                            await send_message(message,1)
+                            await send_message(message, 2)
+                            # 发送成功后再写入数据库
+                            await LanmsgManager.create_lanmsg(
+                                db_session,
+                                sheet_id=net_data['sheetId'],
+                                message=message,
+                                update_time=datetime.now(),
+                            )
+                            logger.info(f"创建数据: {net_data['sheetId']}")
+                        except Exception as e:
+                            logger.error(f"发送消息失败: {e}")
+                except Exception as e:
+                    logger.error(f"处理报修单 {net_data.get('sheetNo', '未知')} 时发生错误: {e}")
+
+        except SQLAlchemyError as e:
+            logger.error(f"数据库操作错误: {e}")
+            # 这里可以考虑回滚数据库操作: db_session.rollback()
+        except Exception as e:
+            logger.error(f"未知错误: {e}")
