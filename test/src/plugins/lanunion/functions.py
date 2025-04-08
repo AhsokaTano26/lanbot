@@ -12,8 +12,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import lanunion_config
 from .lanunion import LanMsgs_getter, LanMsg
 from .models import Lanmsg
-from .models_method import LanmsgManager
-from rss_get import rss_get
+from .models_method import LanmsgManager, rssmsgManager
+from .rss_get import rss_get
 
 # --- 配置项 ---
 username = lanunion_config.lanunion_username
@@ -193,7 +193,9 @@ async def send_message(message, group, targets: list[int] = None):
     """
     bot = get_bot()
     try:
-        target = targets[group]
+        target = int
+        group = int(group)
+        target = NOTIFY_GROUPS[group]
         target = int(target)
         if isinstance(target, int):
             await bot.send_group_msg(group_id=target, message=message)
@@ -308,37 +310,33 @@ async def update_jwcrssmessage_func():
     """更新数据库中的教务rss信息"""
     async with get_session() as db_session:
         try:
-            message = rss_get.jwc()  # 获取简略的rss数据
-
-            for jwc_data in message:
-                try:
-                    # 检查数据库中是否已存在该 sheetId 的记录
-                    existing_lanmsg = await LanmsgManager.get_lanmsg_by_sheet_no(
-                        db_session, str(jwc_data['sheetNo'])
-                    )
-
-                    if existing_lanmsg:  # 更新记录
-                        await check_and_send_reminder(existing_lanmsg)
-                    else:
-                        # 如果记录不存在，则创建新的记录
-                        lan_msg = LanMsg(jwc_data, httpSession=lan_getter.httpSession)
-                        details = lan_msg.getDetails()  # 获取详细数据
-                        # 先尝试发送消息
-                        try:
-                            await send_message(message,1)
-                            await send_message(message, 2)
-                            # 发送成功后再写入数据库
-                            await LanmsgManager.create_lanmsg(
-                                db_session,
-                                sheet_id=jwc_data['sheetId'],
-                                message=message,
-                                update_time=datetime.now(),
-                            )
-                            logger.info(f"创建数据: {jwc_data['sheetId']}")
-                        except Exception as e:
-                            logger.error(f"发送消息失败: {e}")
-                except Exception as e:
-                    logger.error(f"处理报修单 {jwc_data.get('sheetNo', '未知')} 时发生错误: {e}")
+            rss = rss_get()
+            message = await rss.jwc()  # 获取简略的rss数据
+            sendmessage = message["message"]
+            try:
+                # 检查数据库中是否已存在该 sheetId 的记录
+                existing_lanmsg = await rssmsgManager.get_rss_by_rss_no(
+                    db_session, str(message['id'])
+                )
+                if existing_lanmsg:  # 更新记录
+                    print("已存在")
+                else:
+                # 先尝试发送消息
+                    try:
+                        await send_message(f"{sendmessage}",1)
+                        await send_message(f"{sendmessage}", 2)
+                        # 发送成功后再写入数据库
+                        await rssmsgManager.create_rssmsg(
+                            db_session,
+                            id=message['id'],
+                            message=message['message'],
+                            update_time=datetime.now(),
+                        )
+                        logger.info(f"创建数据: {message['id']}")
+                    except Exception as e:
+                        logger.error(f"发送消息失败: {e}")
+            except Exception as e:
+                logger.error(f"处理报修单 {message.get('id', '未知')} 时发生错误: {e}")
 
         except SQLAlchemyError as e:
             logger.error(f"数据库操作错误: {e}")
@@ -350,38 +348,35 @@ async def update_netrssmessage_func():
     """更新数据库中的信息办rss信息"""
     async with get_session() as db_session:
         try:
-            message = rss_get.net()  # 获取简略的rss数据
+            rss = rss_get()
+            message = await rss.net()  # 获取简略的rss数据
+            sendmessage = message["message"]
+            try:
+                # 检查数据库中是否已存在该 sheetId 的记录
+                existing_lanmsg = await rssmsgManager.get_rss_by_rss_no(
+                    db_session, str(message['id'])
+                )
 
-            for net_data in message:
-                try:
-                    # 检查数据库中是否已存在该 sheetId 的记录
-                    existing_lanmsg = await LanmsgManager.get_lanmsg_by_sheet_no(
-                        db_session, str(net_data['sheetNo'])
-                    )
-
-                    if existing_lanmsg:  # 更新记录
-                        await check_and_send_reminder(existing_lanmsg)
-                    else:
-                        # 如果记录不存在，则创建新的记录
-                        lan_msg = LanMsg(net_data, httpSession=lan_getter.httpSession)
-                        details = lan_msg.getDetails()  # 获取详细数据
-                        # 先尝试发送消息
-                        try:
-                            await send_message(message, 0)
-                            await send_message(message,1)
-                            await send_message(message, 2)
-                            # 发送成功后再写入数据库
-                            await LanmsgManager.create_lanmsg(
-                                db_session,
-                                sheet_id=net_data['sheetId'],
-                                message=message,
-                                update_time=datetime.now(),
-                            )
-                            logger.info(f"创建数据: {net_data['sheetId']}")
-                        except Exception as e:
-                            logger.error(f"发送消息失败: {e}")
-                except Exception as e:
-                    logger.error(f"处理报修单 {net_data.get('sheetNo', '未知')} 时发生错误: {e}")
+                if existing_lanmsg:  # 更新记录
+                    print("已存在")
+                else:
+                    # 先尝试发送消息
+                    try:
+                        await send_message(f"{sendmessage}", 0)
+                        await send_message(f"{sendmessage}",1)
+                        await send_message(f"{sendmessage}", 2)
+                        # 发送成功后再写入数据库
+                        await rssmsgManager.create_rssmsg(
+                            db_session,
+                            id=message['id'],
+                            message=message['message'],
+                            update_time=datetime.now(),
+                        )
+                        logger.info(f"创建数据: {message['id']}")
+                    except Exception as e:
+                        logger.error(f"发送消息失败: {e}")
+            except Exception as e:
+                logger.error(f"处理报修单 {message.get('id', '未知')} 时发生错误: {e}")
 
         except SQLAlchemyError as e:
             logger.error(f"数据库操作错误: {e}")

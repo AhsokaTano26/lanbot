@@ -44,8 +44,8 @@ def get_links(description):     #提取附件链接
     return filtered_links
 
 class rss_get:
-    def jwc(self) -> None:       #获取重庆大学信息化办公室通知
-        net = "http://10.244.132.34:6600/cqu/jwc/"  # Rss地址
+    async def jwc(self) -> dict[str]:       #获取重庆大学信息化办公室通知
+        net = "http://127.0.0.1:1200/cqu/jwc/"  # Rss地址
         NewsFeed = feedparser.parse(net)        # 解析RSS
         entry = NewsFeed.entries[0]  # 取第一条新闻
 
@@ -63,23 +63,30 @@ class rss_get:
         bbb = re.sub(r'\n$', '', bbb)  # 去末尾空行
         summary = add_indentation(bbb)  # 缩进处理
         a = len(bbb)        # 内容长度
+        dic = {"id": entry.id}
         message1 = published + "\n" + title + "\n" + summary + "\n------News Link--------\n" + link     #有内容的信息
         message2 = published + "\n" + title + "\n------News Link--------\n" + link      #无内容的信息
 
-        if a > 300:     # 内容长度大于300
+        if a > 300:  # 内容长度大于300
             if len(links) > 0:  # 有附件
-                return published + "\n" + title + "\n" + links[0] + "\n------News Link--------\n" + link  # 有附件
+                dic["message"] = published + "\n" + title + "\n" + links[
+                    0] + "\n------News Link--------\n" + link  # 有附件
+                return dic
             else:
-                return message2
+                dic["message"] = message2
+                return dic
         else:
-            if len(links) > 0:       # 有附件
-                return published + "\n" + title + "\n" + links[0] + "\n------News Link--------\n" + link        # 有附件
+            if len(links) > 0:  # 有附件
+                dic["message"] = published + "\n" + title + "\n" + links[
+                    0] + "\n------News Link--------\n" + link  # 有附件
+                return dic
             else:
-                return message1     # 无附件
+                dic["message"] = message1  # 无附件
+                return dic
 
 
-    def net(self) -> None:      #获取重庆大学教务通知
-        net = "http://10.244.132.34:6600/cqu/net/tzgg"  # Rss地址
+    async def net(self) -> dict[str]:      #获取重庆大学教务通知
+        net = "http://127.0.0.1:1200/cqu/net/tzgg"  # Rss地址
         NewsFeed = feedparser.parse(net)        # 解析RSS
         entry = NewsFeed.entries[0]  # 取第一条新闻
 
@@ -97,16 +104,23 @@ class rss_get:
         bbb = re.sub(r'\n$', '', bbb)  # 去末尾空行
         summary = add_indentation(bbb)  # 缩进处理
         a = len(bbb)        # 内容长度
+        dic = {"id": entry.id}
         message1 = published + "\n" + title + "\n" + summary + "\n------News Link--------\n" + link     #有内容的信息
         message2 = published + "\n" + title + "\n------News Link--------\n" + link      #无内容的信息
 
-        if a > 300:     # 内容长度大于300
+        if a > 300:  # 内容长度大于300
             if len(links) > 0:  # 有附件
-                return published + "\n" + title + "\n" + links[0] + "\n------News Link--------\n" + link  # 有附件
+                dic["message"] = published + "\n" + title + "\n" + links[
+                    0] + "\n------News Link--------\n" + link  # 有附件
+                return dic
             else:
-                return message2
+                dic["message"] = message2
+                return dic
         else:
-            if len(links) > 0:       # 有附件
-                return published + "\n" + title + "\n" + links[0] + "\n------News Link--------\n" + link        # 有附件
+            if len(links) > 0:  # 有附件
+                dic["message"] = published + "\n" + title + "\n" + links[
+                    0] + "\n------News Link--------\n" + link  # 有附件
+                return dic
             else:
-                return message1
+                dic["message"] = message1  # 无附件
+                return dic

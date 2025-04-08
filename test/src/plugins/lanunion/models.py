@@ -21,5 +21,12 @@ class Lanmsg(Model):
     is_assigned = Column(Boolean, default=False)
     assigned_to = Column(String(255), nullable=True)
 
+class rss(Model):
+    __tablename__ = "rss"
+    id = Column(String(300), primary_key=True, nullable=False)
+    message = Column(String(400), nullable=True)
+    update_time = Column(DateTime, nullable=False)  # 更新时间
+    sent = Column(Boolean, default=False)  # 是否已发送通知
+
 
 

@@ -2,7 +2,7 @@ from typing import Optional
 from sqlalchemy import text
 from nonebot_plugin_orm import async_scoped_session
 from sqlalchemy import select
-from .models import Lanmsg  # 导入你的模型定义
+from .models import Lanmsg, rss  # 导入你的模型定义
 
 
 class LanmsgManager:
@@ -50,3 +50,22 @@ class LanmsgManager:
             await session.commit()
             return True
         return False
+
+class rssmsgManager:
+    @classmethod
+    async def get_rss_by_rss_no(cls, session: async_scoped_session, id: str) -> Optional[rss]:
+        """根据 id 获取单个信息"""
+        return await session.get(rss, id)
+    @staticmethod
+    async def is_database_empty(db_session):
+        # 查询数据库，判断是否有数据
+        result = await db_session.execute(text("SELECT 1 FROM lanmsgs LIMIT 1"))
+        return not result.fetchone()
+
+    @classmethod
+    async def create_rssmsg(cls, session: async_scoped_session, **kwargs) -> Lanmsg:
+        """创建新的报修单"""
+        new_rssmsg = rss(**kwargs)
+        session.add(new_rssmsg)
+        await session.commit()
+        return new_rssmsg

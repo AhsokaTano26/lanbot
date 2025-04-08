@@ -7,7 +7,7 @@ from nonebot.adapters.onebot.v11 import MessageSegment, MessageEvent, Bot
 from nonebot.log import logger
 from nonebot.params import CommandArg
 from nonebot_plugin_orm import get_session
-
+from .rss_get import rss_get
 from .config import lanunion_config
 from .lanunion import LanMsgs_getter, LanMsg
 from .models import Lanmsg
@@ -101,6 +101,8 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                 await lanunion.finish("初始化完成")
             else:
                 await update_lanmsgs_func()  # 调用更新函数
+                await update_netrssmessage_func()
+                await update_jwcrssmessage_func()
                 await lanunion.finish("刷新完成")  # 调用具体的刷新函数
 
         elif command.startswith("search "):
@@ -127,6 +129,28 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
             else:
                 result = await handle_lanmsgs_within_days(db_session=db_session, days=days)
                 logger.debug(result)
+
+        elif command.startswith("rss"):
+            try:
+                id = str(command.split(" ")[1])
+            except (IndexError, ValueError):
+                await lanunion.finish("请指定id，例如：/lanunion rss jwc")
+                return
+            if id == "jwc":
+                #result = await update_jwcrssmessage_func()
+                rss = rss_get()
+                rssmag = await rss.jwc()
+                massage = rssmag["message"]
+                await lanunion.finish(f"---查询到---\n{massage}")
+            elif id == "net":
+                #result = await update_netrssmessage_func()
+                rss = rss_get()
+                rssmag = await rss.net()
+                massage = rssmag["message"]
+                await lanunion.finish(f"---查询到---\n{massage}")
+            else:
+                await lanunion.finish("无效的指令,请输入jwc或net")
+
         else:
             await lanunion.finish(
                 "无效的指令，请使用 /lanunion refresh 或 /lanunion search 单号 或/lanunion 最近 <天数>")
