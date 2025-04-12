@@ -314,12 +314,12 @@ async def update_jwcrssmessage_func():
             message = await rss.jwc()  # 获取简略的rss数据
             sendmessage = message["message"]
             try:
-                # 检查数据库中是否已存在该 sheetId 的记录
+                # 检查数据库中是否已存在该 Id 的记录
                 existing_lanmsg = await rssmsgManager.get_rss_by_rss_no(
                     db_session, str(message['id'])
                 )
                 if existing_lanmsg:  # 更新记录
-                    print("已存在")
+                    logger.info(f"{message.get('id')}已被发送过")
                 else:
                 # 先尝试发送消息
                     try:
@@ -332,11 +332,11 @@ async def update_jwcrssmessage_func():
                             message=message['message'],
                             update_time=datetime.now(),
                         )
-                        logger.info(f"创建数据: {message['id']}")
+                        logger.info(f"创建数据: {message.get('id')}")
                     except Exception as e:
                         logger.error(f"发送消息失败: {e}")
             except Exception as e:
-                logger.error(f"处理报修单 {message.get('id', '未知')} 时发生错误: {e}")
+                logger.error(f"处理rss {message.get('id')} 时发生错误: {e}")
 
         except SQLAlchemyError as e:
             logger.error(f"数据库操作错误: {e}")
@@ -352,13 +352,13 @@ async def update_netrssmessage_func():
             message = await rss.net()  # 获取简略的rss数据
             sendmessage = message["message"]
             try:
-                # 检查数据库中是否已存在该 sheetId 的记录
+                # 检查数据库中是否已存在该 Id 的记录
                 existing_lanmsg = await rssmsgManager.get_rss_by_rss_no(
                     db_session, str(message['id'])
                 )
 
                 if existing_lanmsg:  # 更新记录
-                    print("已存在")
+                    logger.info(f"{message.get('id')}已被发送过")
                 else:
                     # 先尝试发送消息
                     try:
@@ -372,14 +372,76 @@ async def update_netrssmessage_func():
                             message=message['message'],
                             update_time=datetime.now(),
                         )
-                        logger.info(f"创建数据: {message['id']}")
+                        logger.info(f"创建数据: {message.get('id')}")
                     except Exception as e:
                         logger.error(f"发送消息失败: {e}")
             except Exception as e:
-                logger.error(f"处理报修单 {message.get('id', '未知')} 时发生错误: {e}")
+                logger.error(f"处理rss {message.get('id')} 时发生错误: {e}")
 
         except SQLAlchemyError as e:
             logger.error(f"数据库操作错误: {e}")
             # 这里可以考虑回滚数据库操作: db_session.rollback()
         except Exception as e:
             logger.error(f"未知错误: {e}")
+
+async def send_charge_func():
+    message = "月末已到，各位记得缴纳话费与网费"
+    try:
+        await send_message(f"{message}", 1)
+        await send_message(f"{message}", 2)
+        logger.info(f"发送信息成功")
+    except  Exception as e:
+        logger.error(f"发送消息失败: {e}")
+
+async def send_message_func(message,flag):
+    message = message
+    flag = flag
+    """
+    flag = 0 发送到通知群
+    flag = 1 发送到调度群
+    flag = 2 发送到老调度群
+    flag = 3 发送到测试群
+    flag = 4 发送到调度群和老调度群
+    flag = 5 发送到调度群和老调度群和通知群
+    """
+    if flag == 0:
+        try:
+            await send_message(f"{message}", 0)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    elif flag == 1:
+        try:
+            await send_message(f"{message}", 1)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    elif flag == 2:
+        try:
+            await send_message(f"{message}", 2)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    elif flag == 3:
+        try:
+            await send_message(f"{message}", 3)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    elif flag == 4:
+        try:
+            await send_message(f"{message}", 1)
+            await send_message(f"{message}", 2)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    elif flag == 5:
+        try:
+            await send_message(f"{message}", 0)
+            await send_message(f"{message}", 1)
+            await send_message(f"{message}", 2)
+            logger.info(f"发送信息成功")
+        except  Exception as e:
+            logger.error(f"发送消息失败: {e}")
+    else:
+        logger.error(f"无效的flag: {flag}")

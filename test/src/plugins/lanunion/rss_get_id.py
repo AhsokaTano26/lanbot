@@ -43,11 +43,11 @@ def get_links(description):     #提取附件链接
 
     return filtered_links
 
-class rss_get:
-    async def jwc(self) -> dict[str]:       #获取重庆大学信息化办公室通知
+class rss_get_id:
+    async def jwc(self,id) -> dict[str]:       #获取重庆大学信息化办公室通知
         net = "http://127.0.0.1:1200/cqu/jwc/"  # Rss地址
         NewsFeed = feedparser.parse(net)        # 解析RSS
-        entry = NewsFeed.entries[0]  # 取第一条新闻
+        entry = NewsFeed.entries[id]  # 取指定新闻
 
         text_maker = html2text.HTML2Text()      # 解析RSS
         text_maker.ignore_links = True  # 忽略HTML中的链接
@@ -85,10 +85,10 @@ class rss_get:
                 return dic
 
 
-    async def net(self) -> dict[str]:      #获取重庆大学教务通知
+    async def net(self,id) -> dict[str]:      #获取重庆大学教务通知
         net = "http://127.0.0.1:1200/cqu/net/tzgg"  # Rss地址
         NewsFeed = feedparser.parse(net)        # 解析RSS
-        entry = NewsFeed.entries[0]  # 取第一条新闻
+        entry = NewsFeed.entries[id]  # 取指定新闻
 
         text_maker = html2text.HTML2Text()      # 解析RSS
         text_maker.ignore_links = True  # 忽略HTML中的链接

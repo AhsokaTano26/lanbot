@@ -7,13 +7,17 @@ from nonebot.adapters.onebot.v11 import MessageSegment, MessageEvent, Bot
 from nonebot.log import logger
 from nonebot.params import CommandArg
 from nonebot_plugin_orm import get_session
+from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
+from nonebot.adapters.onebot.v11 import GROUP_ADMIN, GROUP_OWNER
 from .rss_get import rss_get
+from .rss_get_id import rss_get_id
 from .config import lanunion_config
 from .lanunion import LanMsgs_getter, LanMsg
 from .models import Lanmsg
 from .models_method import LanmsgManager
 from .functions import update_lanmsgs_func, update_lanmsgs_initial, send_message, format_simple_lanmsg, \
-    format_lanmsg_to_sheet, format_lanmsg, handle_lanmsgs_between_time, update_jwcrssmessage_func, update_netrssmessage_func
+    format_lanmsg_to_sheet, format_lanmsg, handle_lanmsgs_between_time, update_jwcrssmessage_func, update_netrssmessage_func, \
+    send_charge_func, send_message_func
 
 # --- 配置项 ---
 username = lanunion_config.lanunion_username
@@ -148,12 +152,93 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                 rssmag = await rss.net()
                 massage = rssmag["message"]
                 await lanunion.finish(f"---查询到---\n{massage}")
+            elif id == "mess":
+                await send_charge_func()
+                await lanunion.finish(f"发送成功")
             else:
                 await lanunion.finish("无效的指令,请输入jwc或net")
+        elif command.startswith("jwc"):
+            try:
+                id = int(command.split(" ")[1])
+                rss = rss_get_id()
+                rssmag = await rss.jwc(id)
+                massage = rssmag["message"]
+                await lanunion.finish(f"---查询到---\n{massage}")
+            except (IndexError, ValueError):
+                await lanunion.finish("请指定id，例如：/lanunion jwc 1")
+                return
+        elif command.startswith("net"):
+            try:
+                id = int(command.split(" ")[1])
+                rss = rss_get_id()
+                rssmag = await rss.net(id)
+                massage = rssmag["message"]
+                await lanunion.finish(f"---查询到---\n{massage}")
+            except (IndexError, ValueError):
+                await lanunion.finish("请指定id，例如：/lanunion net 1")
+                return
+        elif command.startswith("msg"):
+            flag = int(command.split(" ")[1])
+            message = str(command.split(" ")[2])
+            if await GROUP_ADMIN(bot, event):
+                if flag in [0,1,2,3,4,5]:
+                    try:
+                        await send_message_func(message, flag)
+                        await lanunion.finish(f"发送成功")
+                    except (IndexError, ValueError):
+                        await lanunion.finish("请指定message，例如：/lanunion msg 1 message")
+                        return
+                else:
+                    await lanunion.finish("无效的flag")
+            elif await GROUP_OWNER(bot, event):
+                if flag in [0,1,2,3,4,5]:
+                    try:
+                        await send_message_func(message, flag)
+                        await lanunion.finish(f"发送成功")
+                    except (IndexError, ValueError):
+                        await lanunion.finish("请指定message，例如：/lanunion msg 1 message")
+                        return
+                else:
+                    await lanunion.finish("无效的flag")
+            else:
+                await lanunion.finish("您没有权限使用此指令")
+                return
+
+        elif command.startswith("help"):
+            try:
+                await lanunion.finish(
+                    "指令指南 \
+                    \n /lanunion refresh \
+                    \n /lanunion search 单号 \
+                    \n /lanunion 最近 <天数> \
+                    \n /lanunion rss jwc \
+                    \n /lanunion rss net \
+                    \n /lanunion net <int> int表示第几条消息，0为第一条\
+                    \n /lanunion jwc <int> int表示第几条消息，0为第一条\
+                    \n /lanunion msg flag message \
+                    \n  flag = 0 发送到通知群 \
+                    \n  flag = 1 发送到调度群 \
+                    \n  flag = 2 发送到老调度群 \
+                    \n  flag = 3 发送到测试群 \
+                    \n  flag = 4 发送到调度群和老调度群 \
+                    \n  flag = 5 发送到调度群和老调度群和通知群 "
+                )
+            except (IndexError, ValueError):
+                await lanunion.finish("未知错误")
+                return
 
         else:
             await lanunion.finish(
-                "无效的指令，请使用 /lanunion refresh 或 /lanunion search 单号 或/lanunion 最近 <天数>")
+                "无效的指令，请使用 \
+                \n /lanunion refresh \
+                \n /lanunion search 单号 \
+                \n /lanunion 最近 <天数> \
+                \n /lanunion rss jwc \
+                \n /lanunion rss net \
+                \n /lanunion net <int> \
+                \n /lanunion jwc <int> \
+                \n /lanunion msg <int> message"
+            )
 
 
 @scheduler.scheduled_job(CronTrigger(minute="*/5"))
@@ -187,3 +272,23 @@ async def auto_update_netrssmessage_func():
     定时任务函数，用于每间隔10分钟检查更新信息办RSS信息。
     """
     await update_netrssmessage_func()
+
+def is_last_day_of_month():     #判断是否为当月最后一天
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+    return tomorrow.month != today.month
+
+@scheduler.scheduled_job(CronTrigger(hour=10, minute=0))
+async def auto_send_charge_func():
+    """
+    定时任务函数，用于每月末10:00发送缴费提醒信息。
+    """
+    if is_last_day_of_month():      # 判断是否为当月最后一天
+        await send_charge_func()
+@scheduler.scheduled_job(CronTrigger(hour=20, minute=0))# 每月28号或最后一天的10点执行
+async def auto_send_charge_func():
+    """
+    定时任务函数，用于每月末20:00发送缴费提醒信息。
+    """
+    if is_last_day_of_month():      # 判断是否为当月最后一天
+        await send_charge_func()
