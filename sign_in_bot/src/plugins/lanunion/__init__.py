@@ -5,6 +5,7 @@ from apscheduler.triggers.cron import CronTrigger
 from nonebot import on_command, require
 from nonebot.adapters import Message
 from nonebot.adapters.onebot.v11 import MessageSegment, MessageEvent, Bot
+from nonebot.internal.adapter import bot
 from nonebot.log import logger
 from nonebot.params import CommandArg
 from nonebot_plugin_orm import get_session
@@ -15,6 +16,7 @@ from . import timedeal
 from .models_method import SignManger
 from datetime import datetime, timedelta
 from typing import List, Optional
+import nonebot
 
 from nonebot import get_bot, on_command
 
@@ -315,11 +317,17 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
         elif command.startswith("管理"):
             flag = str(command.split(" ")[1])
             if await GROUP_ADMIN(bot, event) or await GROUP_OWNER(bot, event):
-                if flag == "删除":
+                if flag == "删除":    #删除所有数据
+                    """
+                    参考指令：/sign 管理 删除
+                    """
                     await SignManger.delete_all_student_id(db_session)
                     await TansManger.delete_all_id(db_session)
                     await lanunion.send(f"所有数据已删除")
-                elif flag == "查询":
+                elif flag == "查询":      #查询指定学号数据
+                    """
+                    参考指令：/sign 管理 查询 学号
+                    """
                     student_id = str(command.split(" ")[2])
                     existing_lanmsg1 = await TansManger.get_trans_by_id(db_session, student_id)
                     existing_lanmsg2 = await SignManger.get_Sign_by_student_id(db_session, student_id)
@@ -354,7 +362,10 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                         await lanunion.send(f"未找到该用户")
                         return
 
-                elif flag == "结算":
+                elif flag == "结算":      #将签到时间与搬东西时间进行计算
+                    """
+                    参考指令：/sign 管理 结算
+                    """
                     dic1 = {"name": None}
                     dic2 = {"name": None}
                     sheet1 = await TansManger.get_all_id(db_session)
@@ -464,29 +475,69 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                                 except Exception as e:
                                     logger.error(f"发送消息失败: {e}")
                     await lanunion.send(f"全部结算成功")
+
+
+                elif flag == "加班":      #加班增加时长
+                    """
+                    参考指令：/sign 管理 加班 学号 时长
+                    """
+                    student_id = str(command.split(" ")[2])
+                    time = str(command.split(" ")[3])
+                    dic = {"name": None}
+                    sheet = await TansManger.get_all_id(db_session)
+                    if student_id not in sheet:
+                        await lanunion.finish(f"未找到该用户")
+                    else:
+                        existing_lanmsg = await SignManger.get_Sign_by_student_id(db_session, student_id)
+                        dic["name"] = existing_lanmsg.name
+                        dic["student_id"] = existing_lanmsg.student_id
+                        dic["sign_in_time"] = existing_lanmsg.sign_in_time
+                        dic["sign_out_time"] = existing_lanmsg.sign_out_time
+                        old_full_time = existing_lanmsg.full_time
+                        new_full_time = float(old_full_time) + float(time)
+                        dic["full_time"] = new_full_time
+                        try:
+                            await SignManger.delete_student_id(
+                                db_session, dic["student_id"]
+                            )
+                            await SignManger.create_signmsg(
+                                db_session,
+                                name=dic["name"],
+                                student_id=dic['student_id'],
+                                sign_in_time=dic['sign_in_time'],
+                                sign_out_time=dic['sign_out_time'],
+                                full_time=dic['full_time'],
+                            )
+                            logger.info(f"创建签到数据: {dic.get('student_id')}")
+                            await lanunion.finish(f"给{dic.get('name')} 加班{time}小时成功")
+                        except Exception as e:
+                            logger.error(f"发送消息失败: {e}")
+
+
                 else:
-                    await lanunion.finish("无效的flag")
+                    await lanunion.finish("无效的flag，管理指令：\n /签到 管理 结算 \n /签到 管理 加班 学号 时长 \n /签到 管理 查询 学号 \n /签到 管理 删除 \n /sign 删除 学号")
             else:
                 await lanunion.finish("您没有权限使用此指令")
-                return
 
-        elif command.startswith("删除"):
+        elif command.startswith("删除"):       #删除指定学号数据
+            """
+            参考指令：/sign 删除 学号
+            """
             flag = str(command.split(" ")[1])
             lenth = len(flag)
             if await GROUP_ADMIN(bot, event) or await GROUP_OWNER(bot, event):
                 if lenth in [8, 12, 13]:
                     await SignManger.delete_student_id(db_session, flag)
-                    await lanunion.send(f"已删除指定数据")
+                    await lanunion.send(f"已删除{flag}的签到数据")
                 else:
                     await lanunion.finish("无效的flag")
             else:
-                await lanunion.finish("您没有权限使用此指令")
-                return
+                await lanunion.finish("无效的flag，管理指令：\n /签到 管理 结算 \n /签到 管理 加班 学号 时长 \n /签到 管理 查询 学号 \n /签到 管理 删除 \n /sign 删除 学号")
 
 
         else:
             await lanunion.finish(
-                "无效的指令，请输入 \n /sign 签到 姓名 学号 \n /sign 签退 姓名 学号"
+                "无效的指令，请输入 \n /sign 签到 姓名 学号 \n /sign 签退 姓名 学号 \n /sign 上午 姓名 学号 \n /sign 下午 姓名 学号"
             )
 
 
@@ -495,11 +546,12 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 @scheduler.scheduled_job(CronTrigger(hour=16, minute=30))
 async def auto_send_charge_func():
     """
-    定时任务函数，用于每月末10:00发送缴费提醒信息。
+    定时任务函数，用于义诊下午16:00进行签到。
     """
     async with get_session() as db_session:
         sheet = await SignManger.get_all_student_id(db_session)
         now = datetime.now()
+        bot = nonebot.get_bot()
         if sheet is None:
             return
         else:
@@ -518,7 +570,7 @@ async def auto_send_charge_func():
                 dic["sign_in_time"] = sign_in_time
                 dic["sign_out_time"] = sign_out_time
 
-                if lanmsg_fulltime == "100":
+                if lanmsg_fulltime == "100":        # 100 表示未签退
                     t = time_trans()  # 实例化
                     outtimestamp = t.time_tran1(sign_out_time)  # 转换为时间戳
                     intimestamp = t.time_tran2(sign_in_time)  # 转换为时间戳
@@ -543,8 +595,4 @@ async def auto_send_charge_func():
                         logger.info(f"{dic.get('name')} 签退成功")
                     except Exception as e:
                         logger.error(f"发送消息失败: {e}")
-
-
-
-
-
+            await bot.send_group_msg(group_id=925265706, message="已全部自动签退")
