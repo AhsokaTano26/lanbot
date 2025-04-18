@@ -9,12 +9,14 @@ class Sign(Model):
     student_id = Column(String(255), primary_key=True, nullable=True)  # 用户学号
     sign_in_time = Column(String(255), nullable=False)  # 签到时间
     sign_out_time = Column(String(255), nullable=False)  # 签退时间
+    morning = Column(String(255), nullable=True)  # 上午搬东西
+    afternoon = Column(String(255), nullable=True)  # 下午搬东西
     full_time = Column(String(255) ,nullable=False)  # 总在线时间
 
 class Trans(Model):
     __tablename__ = "Trans"
     name = Column(String(255), nullable=True)  # 姓名
     student_id = Column(String(255), primary_key=True, nullable=True)  # 用户学号
-    morning = Column(String(255), nullable=False)  # 签到时间
-    afternoon = Column(String(255), nullable=False)  # 签退时间
+    morning = Column(String(255), nullable=False)  # 上午搬东西
+    afternoon = Column(String(255), nullable=False)  # 下午搬东西
     flag = Column(String(255), nullable=True)

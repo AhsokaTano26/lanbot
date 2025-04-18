@@ -14,14 +14,13 @@ from nonebot.adapters.onebot.v11 import GROUP_ADMIN, GROUP_OWNER
 from .models import Sign
 from . import timedeal
 from .models_method import SignManger
-from datetime import datetime, timedelta
 from typing import List, Optional
 import nonebot
-
+from nonebot.plugin import Plugin, PluginMetadata
 from nonebot import get_bot, on_command
 
 from nonebot.log import logger
-
+from nonebot import get_plugin_config
 from nonebot_plugin_orm import get_session
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -29,15 +28,38 @@ from . import timedeal
 from .models import Sign
 from .models_method import SignManger, TansManger
 from .time_trans import time_trans
+from .Lanunion_config import Config
+__plugin_meta__ = PluginMetadata(
+    name="lanunion",
+    description="义诊插件",
+    usage="",
+    config=Config,
+)
 
 TimeDealSelector = timedeal.TimeDealSelector
+plugin_config = get_plugin_config(Config)
 
-lanunion = on_command("sign", priority=10, block=True)
+async def is_enable() -> bool:
+    return plugin_config.lanunion_plugin_enabled
+
+lanunion = on_command("sign",rule=is_enable, priority=10, block=True)
 # 定时任务，每隔一段时间检查一次新报修单
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 TimeDealSelector = timedeal.TimeDealSelector
 dealtime = TimeDealSelector()
+
+
+manage = on_command("管理",priority=9, block=True,permission=GROUP_ADMIN | GROUP_OWNER)
+@manage.handle()
+async def control(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
+    command = args.extract_plain_text().strip()
+    if command == "开始义诊":
+        plugin_config.lanunion_plugin_enabled = True
+        await manage.finish(f"已{command}")
+    elif command == "结束义诊":
+        plugin_config.lanunion_plugin_enabled = False
+        await manage.finish(f"已{command}")
 
 
 
@@ -49,6 +71,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 
     async with (get_session() as db_session):
         command = args.extract_plain_text().strip()
+        from datetime import datetime, time, timedelta
         if command.startswith("签到"):
             dic = {"name": None}
             dic = dict(dic)
@@ -420,6 +443,8 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                                         student_id=dic2['student_id'],
                                         sign_in_time=dic2['sign_in_time'],
                                         sign_out_time=dic2['sign_out_time'],
+                                        morning = dic1['morning'],
+                                        afternoon=dic1['afternoon'],
                                         full_time=dic2['full_time'],
                                     )
                                     logger.info(f"创建签到数据: {dic2.get('student_id')}")
@@ -515,7 +540,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 
 
                 else:
-                    await lanunion.finish("无效的flag，管理指令：\n /签到 管理 结算 \n /签到 管理 加班 学号 时长 \n /签到 管理 查询 学号 \n /签到 管理 删除 \n /sign 删除 学号")
+                    await lanunion.finish("无效的flag，管理指令：\n /sign 签到 管理 结算 \n /sign 签到 管理 加班 学号 时长 \n /sign 签到 管理 查询 学号 \n /sign签到 管理 删除 \n /sign 删除 学号")
             else:
                 await lanunion.finish("您没有权限使用此指令")
 
@@ -532,7 +557,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                 else:
                     await lanunion.finish("无效的flag")
             else:
-                await lanunion.finish("无效的flag，管理指令：\n /签到 管理 结算 \n /签到 管理 加班 学号 时长 \n /签到 管理 查询 学号 \n /签到 管理 删除 \n /sign 删除 学号")
+                await lanunion.finish("无效的flag，管理指令：\n /sign 签到 管理 结算 \n /sign 签到 管理 加班 学号 时长 \n /sign 签到 管理 查询 学号 \n /sign 签到 管理 删除 \n /sign 删除 学号")
 
 
         else:
