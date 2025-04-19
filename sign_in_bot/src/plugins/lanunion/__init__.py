@@ -616,6 +616,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
             if await GROUP_ADMIN(bot, event) or await GROUP_OWNER(bot, event):
                 if lenth in [8, 12, 13]:
                     await SignManger.delete_student_id(db_session, flag)
+                    await TansManger.delete_id(db_session, flag)
                     await lanunion.send(f"已删除{flag}的签到数据")
                 else:
                     await lanunion.finish("无效的flag")
