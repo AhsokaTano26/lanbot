@@ -60,11 +60,11 @@ class ActivityManger:
                 await session.commit()
         return True
     @classmethod
-    async def Export(cls, session: async_scoped_session) -> str:
+    async def Export(cls, session: async_scoped_session,outpot_name) -> str:
         """导出数据库"""
-        output_file: str = "file/output.xlsx"
+        output_file: str = f"file/{outpot_name}.xlsx"
         # 创建数据库连接
-        engine = create_async_engine('sqlite+aiosqlite://./data/db.sqlite3')
+        engine = create_async_engine('sqlite+aiosqlite:///./data/db.sqlite3')
         async_session = sessionmaker(
             engine, expire_on_commit=False, class_=AsyncSession
         )

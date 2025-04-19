@@ -19,7 +19,6 @@ from typing import List, Optional
 import nonebot
 from nonebot import get_plugin
 from nonebot import get_bot, on_command
-
 from nonebot.log import logger
 from nonebot.matcher import Matcher
 from nonebot_plugin_orm import get_session
@@ -28,6 +27,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from .models import Detail
 from .models_method import DetailManger
 from .config import Config
+
+from typing import Tuple
+from nonebot.params import Command
+
 
 __plugin_meta__ = PluginMetadata(
     name="manage",
@@ -69,25 +72,20 @@ async def send_message(message, targets: list[int] = None):
     except Exception as e:
         logger.error(f"发送消息到目标 {target} 失败: {e}")
 
-lanunion = on_command("管理", priority=9, block=True,permission=GROUP_ADMIN | GROUP_OWNER)
+lanunion = on_command(
+    ("义诊", "开始"),
+    aliases={("活动", "开始")},
+    permission=GROUP_ADMIN | GROUP_OWNER,
+)
 
 @lanunion.handle()
-async def handle_lanunion(bot: Bot, matcher: Matcher, event: MessageEvent, args: Message = CommandArg()):
-    """
-    主函数，用于处理主动发起的请求
-    """
+async def control(matcher: Matcher,cmd: Tuple[str, str] = Command(), args: Message = CommandArg()):
+    _, action = cmd
+    if action == "开始":
+        if args.extract_plain_text():
+            matcher.set_arg("precision_name", args)
 
-    async with (get_session() as db_session):
-        command = args.extract_plain_text().strip()
-        if await GROUP_ADMIN(bot, event) or await GROUP_OWNER(bot, event):
-            if command.startswith("开始义诊"):
-                if args.extract_plain_text():
-                    matcher.set_arg("flag", args)
-                elif command.startswith("开始活动"):
-                    if args.extract_plain_text():
-                        matcher.set_arg("flag", args)
 
-@lanunion.got("flag", prompt="是否开始")
 @lanunion.got("precision_name", prompt="请输入活动名称")
 @lanunion.got("location", prompt="请输入活动地点")
 @lanunion.got("charge_man", prompt="请输入负责人")

@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 from nonebot import get_plugin_config
 from nonebot.plugin import PluginMetadata
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 from sched import scheduler
 from typing import List
 from apscheduler.triggers.cron import CronTrigger
@@ -13,7 +13,6 @@ from nonebot.adapters.onebot.v11 import MessageSegment, MessageEvent, Bot
 from nonebot.internal.adapter import bot
 from nonebot.log import logger
 from nonebot.params import CommandArg
-from nonebot_plugin_orm import get_session
 from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent
 from nonebot.adapters.onebot.v11 import GROUP_ADMIN, GROUP_OWNER
 from datetime import datetime, timedelta
@@ -21,15 +20,17 @@ from typing import List, Optional
 import nonebot
 from xlsxwriter.workbook import Workbook
 from nonebot import get_bot, on_command
-
 from nonebot.log import logger
-
 from nonebot_plugin_orm import get_session
 from sqlalchemy import select, create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from .models import Activity
 from .models_method import ActivityManger
 from .Activity_config import Config
+from ..manage import function
+
+from typing import Tuple
+from nonebot.params import Command
 
 
 __plugin_meta__ = PluginMetadata(
@@ -41,20 +42,27 @@ __plugin_meta__ = PluginMetadata(
 
 SQLALCHEMY_DATABASE_URL = Config.SQLALCHEMY_DATABASE_URL
 plugin_config = get_plugin_config(Config)
+f = function.get_output_name()
 
 async def is_enable() -> bool:
     return plugin_config.Activity_plugin_enabled
 
-manage = on_command("管理",priority=9, block=True,permission=GROUP_ADMIN | GROUP_OWNER)
+manage = on_command(
+    ("活动", "开始"),
+    aliases={("活动", "结束")},
+    permission=GROUP_ADMIN | GROUP_OWNER,
+)
+
 @manage.handle()
-async def control(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
-    command = args.extract_plain_text().strip()
-    if command == "开始活动":
+async def control(cmd: Tuple[str, str] = Command()):
+    _, action = cmd
+    if action == "开始":
         plugin_config.Activity_plugin_enabled = True
-        await manage.finish(f"已{command}")
-    elif command == "结束活动":
+        await manage.finish("活动已开启")
+    elif action == "结束":
         plugin_config.Activity_plugin_enabled = False
-        await manage.finish(f"已{command}")
+        await manage.finish("活动已结束")
+
 
 
 lanunion = on_command("sign",rule=is_enable, priority=10, block=True)
@@ -122,7 +130,11 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                     await ActivityManger.delete_all_student_id(db_session)
                     await lanunion.send(f"所有数据已删除")
                 elif flag == "导出":
-                    a = await ActivityManger.Export(db_session)
+                    current_date = date.today()
+                    flag = str(current_date)
+                    sheet = await f.get_output_name(flag)
+                    output_name = sheet["output_name"]
+                    a = await ActivityManger.Export(db_session,output_name)
                     await lanunion.send(f"{a}")
                 else:
                     await lanunion.finish(f"无效的指令")

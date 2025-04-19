@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 from sched import scheduler
 from typing import List
 from apscheduler.triggers.cron import CronTrigger
@@ -24,11 +24,16 @@ from nonebot import get_plugin_config
 from nonebot_plugin_orm import get_session
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from . import timedeal
-from .models import Sign
-from .models_method import SignManger, TansManger
+from .models import Sign, Trans, Final
+from .models_method import SignManger, TansManger, FinalManger
 from .time_trans import time_trans
 from .Lanunion_config import Config
+from ..manage import function
+
+from typing import Tuple
+from nonebot.params import Command
+
+
 __plugin_meta__ = PluginMetadata(
     name="lanunion",
     description="义诊插件",
@@ -38,11 +43,12 @@ __plugin_meta__ = PluginMetadata(
 
 TimeDealSelector = timedeal.TimeDealSelector
 plugin_config = get_plugin_config(Config)
+f = function.get_output_name()
 
 async def is_enable() -> bool:
     return plugin_config.lanunion_plugin_enabled
 
-lanunion = on_command("sign",rule=is_enable, priority=10, block=True)
+
 # 定时任务，每隔一段时间检查一次新报修单
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
@@ -50,18 +56,23 @@ TimeDealSelector = timedeal.TimeDealSelector
 dealtime = TimeDealSelector()
 
 
-manage = on_command("管理",priority=9, block=True,permission=GROUP_ADMIN | GROUP_OWNER)
+manage = on_command(
+    ("义诊", "开始"),
+    aliases={("义诊", "结束")},
+    permission=GROUP_ADMIN | GROUP_OWNER,
+)
+
 @manage.handle()
-async def control(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
-    command = args.extract_plain_text().strip()
-    if command == "开始义诊":
+async def control(cmd: Tuple[str, str] = Command()):
+    _, action = cmd
+    if action == "开始":
         plugin_config.lanunion_plugin_enabled = True
-        await manage.finish(f"已{command}")
-    elif command == "结束义诊":
+        await manage.finish("义诊已开启")
+    elif action == "结束":
         plugin_config.lanunion_plugin_enabled = False
-        await manage.finish(f"已{command}")
+        await manage.finish("义诊已结束")
 
-
+lanunion = on_command("sign",rule=is_enable, priority=10, block=True)
 
 @lanunion.handle()
 async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = CommandArg()):
@@ -346,6 +357,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                     """
                     await SignManger.delete_all_student_id(db_session)
                     await TansManger.delete_all_id(db_session)
+                    await FinalManger.delete_all_student_id(db_session)
                     await lanunion.send(f"所有数据已删除")
                 elif flag == "查询":      #查询指定学号数据
                     """
@@ -539,6 +551,57 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                             logger.error(f"发送消息失败: {e}")
 
 
+                elif flag == "导出":
+                    current_date = date.today()
+                    flag = str(current_date)
+                    dic = await f.get_output_name(flag)
+                    all = await SignManger.get_all_student_id(db_session)
+                    serial_number = 0
+                    print(all)
+                    for student_id in all:
+                        print(student_id)
+                        serial_number += 1
+                        message = await SignManger.get_Sign_by_student_id(db_session, student_id)
+                        student_name = message.name
+                        student_id = message.student_id
+                        sign_in_time = message.sign_in_time
+                        sign_out_time = message.sign_out_time
+                        full_time = message.full_time
+                        sign_time = dealtime.adjust_full_time(sign_in_time, sign_out_time, full_time)
+
+                        dic["serial_number"] = serial_number
+                        dic["student_name"] = student_name
+                        dic["student_id"] = student_id
+                        dic["sign_time"] = sign_time
+                        dic["full_time"] = full_time
+                        try:
+                            await FinalManger.create_signmsg(
+                                db_session,
+                                serial_number=dic["serial_number"],
+                                id=dic['id'],
+                                name=dic['name'],
+                                location=dic['location'],
+                                level=dic['level'],
+                                charge_man=dic['charge_man'],
+                                charge_man_unit=dic['charge_man_unit'],
+                                phone_number=dic['phone_number'],
+                                Service_content=dic['Service_content'],
+                                student_name=dic["student_name"],
+                                student_id=dic['student_id'],
+                                sign_time=dic['sign_time'],
+                                full_time=dic['full_time'],
+                            )
+                            logger.info(f"创建签到数据: {dic.get('student_id')}")
+                        except Exception as e:
+                            logger.error(f"发送消息失败: {e}")
+                    output_name1 = dic["output_name"] + "原始数据"
+                    a = await SignManger.Export(db_session, output_name1)
+                    await lanunion.send(f"{a}")
+                    output_name2 = dic["output_name"]
+                    b = await FinalManger.Export(db_session, output_name2)
+                    await lanunion.send(f"{b}")
+
+
                 else:
                     await lanunion.finish("无效的flag，管理指令：\n /sign 签到 管理 结算 \n /sign 签到 管理 加班 学号 时长 \n /sign 签到 管理 查询 学号 \n /sign签到 管理 删除 \n /sign 删除 学号")
             else:
@@ -568,7 +631,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 
 
 
-@scheduler.scheduled_job(CronTrigger(hour=16, minute=30))
+@scheduler.scheduled_job(CronTrigger(hour=16, minute=30),rule=is_enable)
 async def auto_send_charge_func():
     """
     定时任务函数，用于义诊下午16:00进行签到。

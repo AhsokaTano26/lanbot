@@ -20,3 +20,20 @@ class Trans(Model):
     morning = Column(String(255), nullable=False)  # 上午搬东西
     afternoon = Column(String(255), nullable=False)  # 下午搬东西
     flag = Column(String(255), nullable=True)
+
+class Final(Model):
+    __tablename__ = "Final"
+    serial_number = Column(String(255), nullable=True) #序号
+    name = Column(String(255), nullable=True)  # 活动名称
+    id = Column(String(255), nullable=True)  #活动时间
+    location = Column(String(255), nullable=True)  # 活动地点
+    level = Column(String(255), nullable=True)  # 活动等级
+    charge_man = Column(String(255), nullable=True)  # 活动负责人
+    charge_man_unit = Column(String(255), nullable=True)  # 活动负责人单位
+    phone_number = Column(String(255), nullable=True)  # 活动负责人电话
+    student_name = Column(String(255), nullable=True)  # 志愿者姓名
+    student_academy = Column(String(255), nullable=True)  # 志愿者学院
+    student_id = Column(String(255), primary_key=True,nullable=True)  # 参与人学号
+    sign_time = Column(String(255), nullable=True)  # 志愿服务时间段
+    full_time = Column(String(255), nullable=True)  # 志愿服务时长
+    Service_content = Column(String(255) ,nullable=True)  # 服务内容
