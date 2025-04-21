@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, time, timedelta, date
 from sched import scheduler
 from typing import List
@@ -44,6 +45,7 @@ __plugin_meta__ = PluginMetadata(
 TimeDealSelector = timedeal.TimeDealSelector
 plugin_config = get_plugin_config(Config)
 f = function.get_output_name()
+fe = function.send_file()
 
 async def is_enable() -> bool:
     return plugin_config.lanunion_plugin_enabled
@@ -521,7 +523,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                     student_id = str(command.split(" ")[2])
                     time = str(command.split(" ")[3])
                     dic = {"name": None}
-                    sheet = await TansManger.get_all_id(db_session)
+                    sheet = await SignManger.get_all_student_id(db_session)
                     if student_id not in sheet:
                         await lanunion.finish(f"未找到该用户")
                     else:
@@ -532,7 +534,7 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                         dic["sign_out_time"] = existing_lanmsg.sign_out_time
                         old_full_time = existing_lanmsg.full_time
                         new_full_time = float(old_full_time) + float(time)
-                        dic["full_time"] = new_full_time
+                        dic["full_time"] = str(new_full_time)
                         try:
                             await SignManger.delete_student_id(
                                 db_session, dic["student_id"]
@@ -552,22 +554,31 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 
 
                 elif flag == "导出":
+                    """
+                    参考指令：/sign 管理 导出
+                    """
                     current_date = date.today()
                     flag = str(current_date)
                     dic = await f.get_output_name(flag)
                     all = await SignManger.get_all_student_id(db_session)
+                    sheet1 = await TansManger.get_all_id(db_session)
                     serial_number = 0
-                    print(all)
                     for student_id in all:
-                        print(student_id)
                         serial_number += 1
                         message = await SignManger.get_Sign_by_student_id(db_session, student_id)
+                        if student_id in sheet1:
+                            existing_lanmsg = await TansManger.get_trans_by_id(db_session, student_id)
+                            morning = int(existing_lanmsg.morning)
+                            evening = int(existing_lanmsg.afternoon)
+                        else:
+                            morning = 0
+                            evening = 0
                         student_name = message.name
                         student_id = message.student_id
                         sign_in_time = message.sign_in_time
                         sign_out_time = message.sign_out_time
                         full_time = message.full_time
-                        sign_time = dealtime.adjust_full_time(sign_in_time, sign_out_time, full_time)
+                        sign_time = dealtime.adjust_full_time(sign_in_time, sign_out_time, full_time,morning,evening)
 
                         dic["serial_number"] = serial_number
                         dic["student_name"] = student_name
@@ -596,9 +607,29 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                             logger.error(f"发送消息失败: {e}")
                     output_name1 = dic["output_name"] + "原始数据"
                     a = await SignManger.Export(db_session, output_name1)
+                    group_id = 925265706  # 发送到小团体
+                    file_path = f"file/{output_name1}.xlsx"  # 替换为实际文件绝对路径
+                    upload_filename = f"{output_name1}.xlsx"  # 替换为上传时的文件名
+                    try:
+                        # 使用绝对路径上传
+                        abs_path = f"file://{os.path.abspath(file_path)}"
+                        await bot.call_api("upload_group_file", group_id=group_id, file=abs_path, name=upload_filename)
+                        await lanunion.send("文件发送成功！")
+                    except Exception as e:
+                        await lanunion.send(f"文件发送失败：{str(e)}")
                     await lanunion.send(f"{a}")
                     output_name2 = dic["output_name"]
                     b = await FinalManger.Export(db_session, output_name2)
+                    group_id = 925265706  # 发送到小团体
+                    file_path = f"file/{output_name2}.xlsx"  # 替换为实际文件绝对路径
+                    upload_filename = f"{output_name2}.xlsx"  # 替换为上传时的文件名
+                    try:
+                        # 使用绝对路径上传
+                        abs_path = f"file://{os.path.abspath(file_path)}"
+                        await bot.call_api("upload_group_file", group_id=group_id, file=abs_path, name=upload_filename)
+                        await lanunion.send("文件发送成功！")
+                    except Exception as e:
+                        await lanunion.send(f"文件发送失败：{str(e)}")
                     await lanunion.send(f"{b}")
 
 
@@ -622,6 +653,27 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                     await lanunion.finish("无效的flag")
             else:
                 await lanunion.finish("无效的flag，管理指令：\n /sign 签到 管理 结算 \n /sign 签到 管理 加班 学号 时长 \n /sign 签到 管理 查询 学号 \n /sign 签到 管理 删除 \n /sign 删除 学号")
+        elif command.startswith("查询所有"):
+            """
+            参考指令：/sign 查询 学号
+            """
+            all = await SignManger.get_all_student_id(db_session)
+            signin_number = 0
+            signout_number = 0
+            final_message = "已签到：\n"
+            for student_id in all:
+                data1 = await SignManger.get_Sign_by_student_id(db_session, student_id)
+                signin_number += 1
+                name = data1.name
+                sign_in_time = data1.sign_in_time
+                sign_out_time = data1.sign_out_time
+                if sign_out_time != "1":
+                    signout_number += 1
+                sign_time = dealtime.adjust_research_time(sign_in_time, sign_out_time)
+                message = name + " " + sign_time
+                final_message += message + "\n"
+            final_message += f"共签到{signin_number}人\n已签退{signout_number}人"
+            await lanunion.send(final_message)
 
 
         else:
@@ -632,56 +684,58 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 
 
 
-@scheduler.scheduled_job(CronTrigger(hour=16, minute=30),rule=is_enable)
+@scheduler.scheduled_job(CronTrigger(hour=16, minute=30),id="Free_clinics_task")
 async def auto_send_charge_func():
     """
     定时任务函数，用于义诊下午16:00进行签到。
     """
     async with get_session() as db_session:
-        sheet = await SignManger.get_all_student_id(db_session)
-        now = datetime.now()
-        bot = nonebot.get_bot()
-        if sheet is None:
-            return
-        else:
-            for id_s in sheet:
-                existing_lanmsg = await SignManger.get_Sign_by_student_id(db_session, id_s)
-                lanmsg_fulltime = existing_lanmsg.full_time
+        target = await is_enable()
+        if target:
+            sheet = await SignManger.get_all_student_id(db_session)
+            now = datetime.now()
+            bot = nonebot.get_bot()
+            if sheet is None:
+                return
+            else:
+                for id_s in sheet:
+                    existing_lanmsg = await SignManger.get_Sign_by_student_id(db_session, id_s)
+                    lanmsg_fulltime = existing_lanmsg.full_time
 
-                dic = {"name": None}
-                name = existing_lanmsg.name
-                student_id = existing_lanmsg.student_id
-                sign_in_time = existing_lanmsg.sign_in_time
-                sign_out_time = dealtime.adjust_sign_in_time(now)
-                full_time = existing_lanmsg.full_time
-                dic["name"] = name
-                dic["student_id"] = student_id
-                dic["sign_in_time"] = sign_in_time
-                dic["sign_out_time"] = sign_out_time
+                    dic = {"name": None}
+                    name = existing_lanmsg.name
+                    student_id = existing_lanmsg.student_id
+                    sign_in_time = existing_lanmsg.sign_in_time
+                    sign_out_time = dealtime.adjust_sign_in_time(now)
+                    full_time = existing_lanmsg.full_time
+                    dic["name"] = name
+                    dic["student_id"] = student_id
+                    dic["sign_in_time"] = sign_in_time
+                    dic["sign_out_time"] = sign_out_time
 
-                if lanmsg_fulltime == "100":        # 100 表示未签退
-                    t = time_trans()  # 实例化
-                    outtimestamp = t.time_tran1(sign_out_time)  # 转换为时间戳
-                    intimestamp = t.time_tran2(sign_in_time)  # 转换为时间戳
-                    full_time = outtimestamp - intimestamp  # 计算时间
-                    full_time = full_time / 3600  # 计算时间
-                    dic["full_time"] = full_time
-                    try:
-                        await SignManger.delete_student_id(
-                            db_session, dic["student_id"]
-                        )
+                    if lanmsg_fulltime == "100":        # 100 表示未签退
+                        t = time_trans()  # 实例化
+                        outtimestamp = t.time_tran1(sign_out_time)  # 转换为时间戳
+                        intimestamp = t.time_tran2(sign_in_time)  # 转换为时间戳
+                        full_time = outtimestamp - intimestamp  # 计算时间
+                        full_time = full_time / 3600  # 计算时间
+                        dic["full_time"] = full_time
+                        try:
+                            await SignManger.delete_student_id(
+                                db_session, dic["student_id"]
+                            )
 
-                        await SignManger.create_signmsg(
-                            db_session,
-                            name=dic["name"],
-                            student_id=dic['student_id'],
-                            sign_in_time=dic['sign_in_time'],
-                            sign_out_time=dic['sign_out_time'],
-                            full_time=dic['full_time'],
-                        )
-                        logger.info(f"创建签到数据: {dic.get('student_id')}")
-                        # 发送成功签退信息
-                        logger.info(f"{dic.get('name')} 签退成功")
-                    except Exception as e:
-                        logger.error(f"发送消息失败: {e}")
-            await bot.send_group_msg(group_id=925265706, message="已全部自动签退")
+                            await SignManger.create_signmsg(
+                                db_session,
+                                name=dic["name"],
+                                student_id=dic['student_id'],
+                                sign_in_time=dic['sign_in_time'],
+                                sign_out_time=dic['sign_out_time'],
+                                full_time=dic['full_time'],
+                            )
+                            logger.info(f"创建签到数据: {dic.get('student_id')}")
+                            # 发送成功签退信息
+                            logger.info(f"{dic.get('name')} 签退成功")
+                        except Exception as e:
+                            logger.error(f"发送消息失败: {e}")
+                await bot.send_group_msg(group_id=925265706, message="已全部自动签退")

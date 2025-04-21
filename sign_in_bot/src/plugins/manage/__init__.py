@@ -1,3 +1,8 @@
+import os
+import shutil
+import tempfile
+
+#from nonebot.adapters.napcat.message import File
 from nonebot import get_plugin_config
 from nonebot.internal.params import ArgPlainText, Arg
 from nonebot.plugin import PluginMetadata
@@ -130,3 +135,6 @@ async def got(location: str = ArgPlainText(),
                     logger.error(f"处理 {dic.get('precision_name')} 时发生错误: {e}")
         except SQLAlchemyError as e:
             logger.error(f"数据库操作错误: {e}")
+
+
+

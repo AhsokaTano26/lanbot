@@ -1,3 +1,4 @@
+import os
 import sqlite3
 
 import pandas as pd
@@ -135,6 +136,16 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
                     sheet = await f.get_output_name(flag)
                     output_name = sheet["output_name"]
                     a = await ActivityManger.Export(db_session,output_name)
+                    group_id = 925265706  # 发送到小团体
+                    file_path = f"file/{output_name}.xlsx"  # 替换为实际文件绝对路径
+                    upload_filename = f"{output_name}.xlsx"  # 替换为上传时的文件名
+                    try:
+                        # 使用绝对路径上传
+                        abs_path = f"file://{os.path.abspath(file_path)}"
+                        await bot.call_api("upload_group_file", group_id=group_id, file=abs_path, name=upload_filename)
+                        await lanunion.send("文件发送成功！")
+                    except Exception as e:
+                        await lanunion.send(f"文件发送失败：{str(e)}")
                     await lanunion.send(f"{a}")
                 else:
                     await lanunion.finish(f"无效的指令")

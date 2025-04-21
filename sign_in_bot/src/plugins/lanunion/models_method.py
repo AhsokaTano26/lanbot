@@ -189,9 +189,9 @@ class FinalManger:
         return True
 
     @classmethod
-    async def Export(cls, session: async_scoped_session,outpot_name) -> str:
+    async def Export(cls, session: async_scoped_session,output_name) -> str:
         """导出数据库"""
-        output_file: str = f"file/{outpot_name}.xlsx"
+        output_file: str = f"file/{output_name}.xlsx"
         # 创建数据库连接
         engine = create_async_engine('sqlite+aiosqlite:///./data/db.sqlite3')
         async_session = sessionmaker(
@@ -215,8 +215,8 @@ class FinalManger:
                     df.to_excel(output_file, index=False)
 
                 await asyncio.get_event_loop().run_in_executor(None, save_excel)
-
             await engine.dispose()
+
         except Exception as e:
             return f"导出失败: {str(e)}"
         return f"数据已导出到 {Path(output_file).resolve()}"
