@@ -108,7 +108,7 @@ def display_feed(feed):
 if __name__ == "__main__":
     # 配置信息
     RSSHUB_INSTANCE = "https://rsshub.app"  # 推荐使用自建实例
-    TWITTER_USER = "aibaaiai"  # 替换目标用户名
+    TWITTER_USER = "bang_dream_info"  # 替换目标用户名
 
     feed_url = f"{RSSHUB_INSTANCE}/twitter/user/{TWITTER_USER}"
 

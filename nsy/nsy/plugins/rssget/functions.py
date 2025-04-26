@@ -18,7 +18,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from .models_method import DetailManger
 from.models import Detail
 
-sheet1 = ["aibaaiai"]
+
+sheet1 = ["aibaaiai","aimi_sound","kudoharuka910","Sae_Otsuka","aoki__hina","Yuki_Nakashim","ttisrn_0710","tanda_hazuki",
+          "bang_dream_info","sasakirico","Hina_Youmiya","Riko_kohara","okada_mei0519","AkaneY_banu","Kanon_Takao",
+          "Kanon_Shizaki","bushi_creative","amane_bushi","hitaka_mashiro","kohinatamika","AyAsA_violin"]
 
 
 # 配置项（按需修改）
@@ -31,11 +34,12 @@ SECRET_KEY = "5HB8M0ik4F2sP35iQVSp7W9fPpAH7dUA"
 
 def extract_content(entry) -> dict:
     """提取推文内容结构化数据"""
+    B = BaiDu()
     published = datetime(*entry.published_parsed[:6]).strftime("%Y-%m-%d %H:%M")
 
     # 清理文本内容
     clean_text = BeautifulSoup(entry.description, "html.parser").get_text("\n").strip()
-    trans_text = BeautifulSoup(entry.description, "html.parser").get_text(" ")
+    trans_text = B.main(BeautifulSoup(entry.description, "html.parser").get_text(" "))
 
     # 提取图片（优先媒体内容）
     images = []
@@ -60,7 +64,7 @@ def extract_content(entry) -> dict:
         "link": entry.link,
         "text": clean_text,
         "trans_title": entry.title,
-        "trans_text": trans_text,
+        "trans_text": B.main(trans_text),
         "images": images[:MAX_IMAGES]
     }
 
@@ -172,36 +176,38 @@ class rss_get():
                                 summary=content['text'],
                             )
                             logger.info(f"创建数据: {content.get('time')}")
+                            # 构建文字消息
+                            msg = [
+                                f"🐦 用户 {username} 最新动态",
+                                f"📌 {content['title']}",
+                                f"⏰ {content['time']}",
+                                f"🔗 {content['link']}",
+                                "\n📝 正文：",
+                                content['text'],
+                                f"📌 {content['trans_title']}"
+                                "\n📝 翻译：",
+                                content["trans_text"],
+                            ]
+
+                            # 先发送文字内容
+                            await bot.call_api("send_group_msg", **{
+                                "group_id": group_id,
+                                "message": "\n".join(msg)
+                            })
+
+                            # 发送图片（单独处理）
+                            if content["images"]:
+                                await bot.call_api("send_group_msg", **{
+                                    "group_id": group_id,
+                                    "message": f"🖼️ 检测到 {len(content['images'])} 张图片..."
+                                })
+                                for index, img_url in enumerate(content["images"], 1):
+                                    await rss_get.send_onebot_image(self, img_url, group_id)
                         except Exception as e:
                             logger.error(f"处理签到 {content.get('time')} 时发生错误: {e}")
+
+
                 except SQLAlchemyError as e:
                     logger.error(f"数据库操作错误: {e}")
 
 
-                # 构建文字消息
-                msg = [
-                    f"🐦 用户 {username} 最新动态",
-                    f"📌 {content['title']}",
-                    f"⏰ {content['time']}",
-                    f"🔗 {content['link']}",
-                    "\n📝 正文：",
-                    content['text'],
-                    f"📌 {content['trans_title']}"
-                    "\n📝 翻译：",
-                    content["trans_text"],
-                ]
-
-                # 先发送文字内容
-                await bot.call_api("send_group_msg", **{
-                    "group_id": group_id,
-                    "message": "\n".join(msg)
-                })
-
-                # 发送图片（单独处理）
-                if content["images"]:
-                    await bot.call_api("send_group_msg", **{
-                        "group_id": group_id,
-                        "message": f"🖼️ 检测到 {len(content['images'])} 张图片..."
-                    })
-                    for index, img_url in enumerate(content["images"], 1):
-                        await rss_get.send_onebot_image(self,img_url, group_id)

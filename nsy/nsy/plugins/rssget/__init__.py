@@ -25,7 +25,9 @@ __plugin_meta__ = PluginMetadata(
 )
 B = BaiDu()  # 初始化翻译类
 R = rss_get()  # 初始化rss类
-sheet1 = ["aibaaiai"]
+sheet1 = ["aibaaiai","aimi_sound","kudoharuka910","Sae_Otsuka","aoki__hina","Yuki_Nakashim","ttisrn_0710","tanda_hazuki",
+          "bang_dream_info","sasakirico","Hina_Youmiya","Riko_kohara","okada_mei0519","AkaneY_banu","Kanon_Takao",
+          "Kanon_Shizaki","bushi_creative","amane_bushi","hitaka_mashiro","kohinatamika","AyAsA_violin"]
 
 
 # 配置项（按需修改）
@@ -155,6 +157,9 @@ async def handle_rss(args: Message = CommandArg()):
                 await send_onebot_image(img_url)
 
 
-@scheduler.scheduled_job(CronTrigger(minute="*/1"))
+@scheduler.scheduled_job(CronTrigger(minute="*/10"))
 async def auto_update_func():
-    await R.handle_rss("aibaaiai", 658521872)
+    await R.handle_rss("aibaaiai", 1016925587)
+    await R.handle_rss("bang_dream_info", 1016925587)
+    await R.handle_rss("kohinatamika", 824993838)
+    await R.handle_rss("AyAsA_violin", 824993838)
