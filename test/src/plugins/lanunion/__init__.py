@@ -244,9 +244,13 @@ async def handle_lanunion(bot: Bot, event: MessageEvent, args: Message = Command
 @scheduler.scheduled_job(CronTrigger(minute="*/5"))
 async def auto_update_lanmsgs_func():
     """
-    定时任务函数，用于每间隔5分钟检查更新报修单信息。
+    定时任务函数，用于每间隔5分钟检查更新报修单信息\检查更新教务RSS信息\检查更新信息办RSS信息。
     """
     await update_lanmsgs_func()
+    logger.info("<UNK> JWC<UNK>")
+    await update_jwcrssmessage_func()
+    logger.info("<UNK> NET<UNK>")
+    await update_netrssmessage_func()
 
 
 @scheduler.scheduled_job(CronTrigger(day_of_week="sat", hour=19, minute=0))  # 设置触发时间为每周末晚上 7 点
@@ -258,20 +262,6 @@ async def auto_send_7days():
     async with get_session() as db_session:
         await handle_lanmsgs_within_days(db_session, 7, True)
     logger.info("定时任务执行完毕：发送 7 天内的报修单")
-
-@scheduler.scheduled_job(CronTrigger(minute="*/10"))
-async def auto_update_jwcrssmessage_func():
-    """
-    定时任务函数，用于每间隔10分钟检查更新教务RSS信息。
-    """
-    await update_jwcrssmessage_func()
-
-@scheduler.scheduled_job(CronTrigger(minute="*/10"))
-async def auto_update_netrssmessage_func():
-    """
-    定时任务函数，用于每间隔10分钟检查更新信息办RSS信息。
-    """
-    await update_netrssmessage_func()
 
 def is_last_day_of_month():     #判断是否为当月最后一天
     today = datetime.now()
